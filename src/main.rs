@@ -40,6 +40,7 @@ async fn server(feeds: Arc<Mutex<HashMap<&'static str, Vec<Article>>>>) -> Resul
                 let items = feed
                     .iter()
                     .map(|article| {
+                        trace!(?article, "Generating article RSS");
                         ItemBuilder::default()
                             .title(article.headline.to_owned())
                             .guid(
@@ -91,6 +92,7 @@ async fn scrape(
         for (feed, articles) in feeds.iter().zip(articles) {
             out.insert(feed.name, articles);
         }
+        drop(out);
         sleep(Duration::from_secs(60 * 60)).await;
     }
 }
