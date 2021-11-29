@@ -123,12 +123,12 @@ pub const RTE: Scraper = Scraper {
         let span = span!(Level::TRACE, "RTE.parse_date", date = date.as_str());
         let _entered = span.enter();
         trace!("Parsing date");
-        Ok(Europe::Dublin
+        Europe::Dublin
             .from_local_datetime(&NaiveDateTime::parse_from_str(
                 date.trim(),
                 "Updated / %A, %-d %b %Y %R",
-            ).unwrap_or(Utc::now().with_timezone(&Europe::Dublin).naive_local()))
+            ).unwrap_or_else(|_| Utc::now().with_timezone(&Europe::Dublin).naive_local()))
             .earliest()
-            .context("No local date")?)
+            .context("No local date")
     },
 };

@@ -3,8 +3,8 @@ use axum::{handler::get, http::StatusCode, Router};
 use futures::future::try_join_all;
 use news_rss::{Article, Scraper, RTE};
 use rss::{ChannelBuilder, GuidBuilder, ItemBuilder};
-use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
-use tokio::{runtime::Handle, select, sync::Mutex, time::sleep};
+use std::{collections::HashMap, net::SocketAddr, time::Duration};
+use tokio::{select, sync::Mutex, time::sleep};
 use tracing::{instrument, span, trace, Instrument, Level};
 use tracing_subscriber::EnvFilter;
 
@@ -15,16 +15,16 @@ async fn main() -> Result<()> {
             .with_env_filter(EnvFilter::from_default_env())
             .finish(),
     )?;
-    let feeds = Arc::new(Mutex::new(HashMap::new()));
+    let feeds = Box::leak(Box::new(Mutex::new(HashMap::new())));
     select!(
-        r = tokio::spawn(server(feeds.clone())) => r,
-        r = tokio::task::spawn_blocking(|| Handle::current().block_on(scrape(&[RTE], feeds))) => r
-    )??;
+        r = server(feeds) => r,
+        r = scrape(&[RTE], feeds) => r
+    )?;
     Ok(())
 }
 
 #[instrument(skip(feeds))]
-async fn server(feeds: Arc<Mutex<HashMap<&'static str, Vec<Article>>>>) -> Result<()> {
+async fn server(feeds: &'static Mutex<HashMap<&'static str, Vec<Article>>>) -> Result<()> {
     let feed = |name: &'static str| {
         move || {
             async move {
@@ -73,7 +73,7 @@ async fn server(feeds: Arc<Mutex<HashMap<&'static str, Vec<Article>>>>) -> Resul
     };
     let app = Router::new().route("/rte.rss", get(feed("RTE")));
 
-    let address = SocketAddr::new("0.0.0.0".parse().unwrap(), 3000);
+    let address = SocketAddr::new("0.0.0.0".parse().unwrap(), 2048);
     axum::Server::bind(&address)
         .serve(app.into_make_service())
         .await?;
@@ -83,7 +83,7 @@ async fn server(feeds: Arc<Mutex<HashMap<&'static str, Vec<Article>>>>) -> Resul
 #[instrument(skip(out))]
 async fn scrape(
     feeds: &[Scraper],
-    out: Arc<Mutex<HashMap<&'static str, Vec<Article>>>>,
+    out: &Mutex<HashMap<&'static str, Vec<Article>>>,
 ) -> Result<()> {
     let client = reqwest::ClientBuilder::new().build()?;
     loop {
