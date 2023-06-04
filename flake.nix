@@ -51,7 +51,6 @@
 
       config.systemd.services.news-rss = mkIf cfg.enable {
           description = "RTE rss feed";          
-          confinement.enable = true;
           script = "${packages.${pkgs.system}.default}/bin/news-rss";
           scriptArgs = cfg.address;
           wantedBy = [ "multi-user.target" ];
