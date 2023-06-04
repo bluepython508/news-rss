@@ -7,6 +7,7 @@ use std::{collections::HashMap, net::SocketAddr, time::Duration};
 use tokio::{select, sync::Mutex, time::sleep};
 use tracing::{instrument, span, trace, Instrument, Level};
 use tracing_subscriber::EnvFilter;
+use std::env::args;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -15,16 +16,19 @@ async fn main() -> Result<()> {
             .with_env_filter(EnvFilter::from_default_env())
             .finish(),
     )?;
+    let address = args().skip(1).next().unwrap_or_else(|| "0.0.0.0:2048".to_owned());
+    let (address, port) = address.split_once(":").unwrap_or_else(|| ("0.0.0.0", &address));
+    let address = SocketAddr::new(address.parse()?, port.parse()?);
     let feeds = Box::leak(Box::new(Mutex::new(HashMap::new())));
     select!(
-        r = server(feeds) => r,
+        r = server(address, feeds) => r,
         r = scrape(&[RTE], feeds) => r
     )?;
     Ok(())
 }
 
 #[instrument(skip(feeds))]
-async fn server(feeds: &'static Mutex<HashMap<&'static str, Vec<Article>>>) -> Result<()> {
+async fn server(address: SocketAddr, feeds: &'static Mutex<HashMap<&'static str, Vec<Article>>>) -> Result<()> {
     let feed = |name: &'static str| {
         move || {
             async move {
@@ -73,7 +77,6 @@ async fn server(feeds: &'static Mutex<HashMap<&'static str, Vec<Article>>>) -> R
     };
     let app = Router::new().route("/rte.rss", get(feed("RTE")));
 
-    let address = SocketAddr::new("0.0.0.0".parse().unwrap(), 2048);
     axum::Server::bind(&address)
         .serve(app.into_make_service())
         .await?;
