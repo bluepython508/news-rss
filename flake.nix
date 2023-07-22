@@ -54,6 +54,7 @@
           script = "${packages.${pkgs.system}.default}/bin/news-rss";
           scriptArgs = cfg.address;
           wantedBy = [ "multi-user.target" ];
+          after = [ "network-online.target" ];
       };
     };
   };
